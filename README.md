@@ -65,8 +65,6 @@ cargo test
 
 Layout: `src/tree.rs` (tree model, fold state, guide prefixes), `src/tmux.rs` (opening files via the `tmux` CLI), `src/main.rs` (state, keys, mouse, rendering).
 
-## Ideas
+## Roadmap
 
-- `/` filter
-- config file (keybindings, open command per file type)
-- filesystem-watch refresh
+See [TODO.md](TODO.md).

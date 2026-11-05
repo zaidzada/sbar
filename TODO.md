@@ -1,0 +1,36 @@
+# TODO
+
+## Config file
+- `~/.config/sbar/config.toml` (`serde` + `toml`)
+- Ignore list (`.git`, `target`, `node_modules`, ...), optionally honoring `.gitignore` via the `ignore` crate
+- Default sort mode, show-hidden default, sidebar width
+- Keybindings and the open command (editor, per file type)
+- Shared by the features below, so it likely comes first
+
+## Watch for changes
+- Use the `notify` crate to refresh automatically, debounced (about 100-200ms)
+- Reuse `App::refresh()`, which already keeps fold state and cursor
+- Watch only expanded directories, not the whole tree
+
+## Sorting
+- Modes: name, modified time, size, extension; a key to cycle them, indicator in the footer
+- Dirs-first as a separate toggle
+- Sorting lives in `Node::load` in `src/tree.rs`
+
+## Git status gutter
+- Run `git status --porcelain` and map paths to markers (`M`, `A`, `?`, `!`)
+- Directories inherit a marker if anything below them changed
+- Refresh alongside the file watcher
+- Shelling out to `git` is simplest; `git2` is the heavier alternative
+
+## `/` filter
+- Filter mode on `/`: query shown in the footer, Backspace edits, `Enter` accepts, `Esc` clears
+- Search the whole tree (loading everything below the root), skipping the ignore list
+- Matches keep their parent folders visible so the tree guides still make sense
+- Start with smart-case substring matching on filenames; maybe full relative paths and fuzzy matching (`nucleo`) later
+- Highlight matches
+
+## Maybe
+- `sbar --toggle`, or a focus-aware toggle, so tmux bindings need no helper script
+- Ship the toggle script in the repo (`contrib/toggle.sh`)
+- Vim-style fold keys (`zc`, `zo`, `za`, `zM`, `zR`)
