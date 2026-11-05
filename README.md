@@ -39,7 +39,7 @@ Press `?` in sbar to see this list.
 | `E` | expand all visible folders one level |
 | `C` | collapse all folders |
 | `r` | refresh |
-| `.` | show / hide dotfiles |
+| `.` | show / hide dotfiles (shown, dimmed, by default) |
 | `?` | toggle help |
 | `q` / `Esc` | quit |
 

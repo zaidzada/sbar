@@ -57,7 +57,7 @@ impl App {
     fn new(dir: PathBuf) -> Self {
         let mut root = Node::new(dir, true);
         root.expand();
-        let mut app = App { root, rows: Vec::new(), cursor: 0, show_hidden: false, list: ListState::default(), list_height: 0, last_click: None, help: false, quit: false };
+        let mut app = App { root, rows: Vec::new(), cursor: 0, show_hidden: true, list: ListState::default(), list_height: 0, last_click: None, help: false, quit: false };
         app.rebuild();
         app
     }
@@ -248,12 +248,19 @@ impl App {
         let items: Vec<ListItem> = self
             .rows
             .iter()
-            .map(|r| {
-                let (marker, style) = if r.is_dir {
+            .enumerate()
+            .map(|(i, r)| {
+                let (marker, mut style) = if r.is_dir {
                     (if r.expanded { "▾ " } else { "▸ " }, Style::new().fg(Color::Blue).add_modifier(Modifier::BOLD))
                 } else {
                     ("", Style::new())
                 };
+                if i > 0 && r.name.starts_with('.') {
+                    style = style.add_modifier(Modifier::DIM);
+                    if !r.is_dir {
+                        style = style.fg(Color::DarkGray);
+                    }
+                }
                 ListItem::new(Line::from(vec![
                     Span::styled(r.prefix.clone(), Style::new().fg(Color::DarkGray)),
                     Span::styled(format!("{marker}{}", r.name), style),
