@@ -55,6 +55,8 @@ Click selects a row and toggles a folder, double-click opens a file, and the whe
 - if it is a shell, sbar types `vim '<file>'` and presses Enter
 - if there is no pane to the right, the file opens in a new window
 
+Focus then moves to the pane (or window) holding the file.
+
 `O` always opens a new window named after the file.
 
 ## Development

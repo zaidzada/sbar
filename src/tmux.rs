@@ -27,7 +27,8 @@ fn vim_escape(s: &str) -> String {
 
 /// Open `path` in the pane to the right of ours. If that pane is already
 /// running vim, use `:e`; if it's a shell, type the command; with no pane to
-/// the right, open a new window named after the file.
+/// the right, open a new window named after the file. Focus moves to wherever
+/// the file was opened.
 pub fn open(path: &Path) {
     let p = path.to_string_lossy();
     let right = tmux(&["display", "-p", "-t", "{right-of}", "#{pane_id} #{pane_current_command}"])
@@ -37,10 +38,12 @@ pub fn open(path: &Path) {
             tmux(&["send-keys", "-t", id, "Escape"]);
             tmux(&["send-keys", "-t", id, "-l", &format!(":e {}", vim_escape(&p))]);
             tmux(&["send-keys", "-t", id, "Enter"]);
+            tmux(&["select-pane", "-t", id]);
         }
         Some((id, _)) => {
             tmux(&["send-keys", "-t", id, "-l", &format!("vim {}", sh_quote(&p))]);
             tmux(&["send-keys", "-t", id, "Enter"]);
+            tmux(&["select-pane", "-t", id]);
         }
         None => open_in_window(path),
     }
