@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use ratatui::crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
+    self, DisableFocusChange, DisableMouseCapture, EnableFocusChange, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
     MouseButton, MouseEvent, MouseEventKind,
 };
 use ratatui::crossterm::execute;
@@ -54,13 +54,15 @@ struct App {
     last_click: Option<(Instant, usize)>,
     help: bool,
     quit: bool,
+    /// Background of the selected row, from tmux's `mode-style`.
+    selection: Color,
 }
 
 impl App {
     fn new(dir: PathBuf, config: Config) -> Self {
         let mut root = Node::new(dir, true);
         root.expand(&config.ignore);
-        let mut app = App { config, root, rows: Vec::new(), cursor: 0, show_hidden: true, list: ListState::default(), list_height: 0, last_click: None, help: false, quit: false };
+        let mut app = App { config, root, rows: Vec::new(), cursor: 0, show_hidden: true, list: ListState::default(), list_height: 0, last_click: None, help: false, quit: false, selection: selection_bg() };
         app.rebuild();
         app
     }
@@ -271,7 +273,7 @@ impl App {
             })
             .collect();
         self.list.select(Some(self.cursor));
-        let list = List::new(items).highlight_style(Style::new().add_modifier(Modifier::REVERSED));
+        let list = List::new(items).highlight_style(Style::new().bg(self.selection));
         let area: Rect = frame.area();
         let [list_area, footer_area] = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(area);
         self.list_height = list_area.height;
@@ -302,11 +304,32 @@ fn draw_help(frame: &mut Frame, area: Rect) {
     frame.render_widget(Paragraph::new(lines).block(block), popup);
 }
 
+/// Selected-row background when tmux doesn't give us one.
+const SELECTION_FALLBACK: Color = Color::Indexed(250);
+
+fn selection_bg() -> Color {
+    tmux::selection_bg().unwrap_or(SELECTION_FALLBACK)
+}
+
 fn run(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()> {
+    // A light/dark switch flips tmux's theme from a background hook when the
+    // terminal regains focus, so re-read the colour on focus and again on the
+    // next keypress in case the hook hadn't finished yet.
+    let mut recheck = false;
     while !app.quit {
         terminal.draw(|f| app.draw(f))?;
         match event::read()? {
-            Event::Key(key) if key.kind == KeyEventKind::Press => app.on_key(key),
+            Event::FocusGained => {
+                app.selection = selection_bg();
+                recheck = true;
+            }
+            Event::Key(key) if key.kind == KeyEventKind::Press => {
+                if recheck {
+                    app.selection = selection_bg();
+                    recheck = false;
+                }
+                app.on_key(key)
+            }
             Event::Mouse(m) => app.on_mouse(m),
             _ => {}
         }
@@ -320,15 +343,15 @@ fn main() -> io::Result<()> {
     let config = config::load().map_err(io::Error::other)?;
     let mut app = App::new(dir, config);
     let mut terminal = ratatui::init();
-    // ratatui's panic hook restores the terminal but knows nothing about mouse capture
+    // ratatui's panic hook restores the terminal but knows nothing about mouse capture or focus reporting
     let prev_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        let _ = execute!(io::stdout(), DisableMouseCapture);
+        let _ = execute!(io::stdout(), DisableMouseCapture, DisableFocusChange);
         prev_hook(info);
     }));
-    execute!(io::stdout(), EnableMouseCapture)?;
+    execute!(io::stdout(), EnableMouseCapture, EnableFocusChange)?;
     let result = run(&mut terminal, &mut app);
-    let _ = execute!(io::stdout(), DisableMouseCapture);
+    let _ = execute!(io::stdout(), DisableMouseCapture, DisableFocusChange);
     ratatui::restore();
     result
 }
