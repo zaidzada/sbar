@@ -20,7 +20,7 @@ use ratatui::{DefaultTerminal, Frame};
 use config::Config;
 use tree::{Node, Row};
 
-const KEYS: [(&str, &str); 20] = [
+const KEYS: [(&str, &str); 21] = [
     ("j / ↓", "move down"),
     ("k / ↑", "move up"),
     ("g / Home", "go to top"),
@@ -32,6 +32,7 @@ const KEYS: [(&str, &str); 20] = [
     ("Enter", "toggle dir / open"),
     ("o", "open in vim pane"),
     ("O", "open in new window"),
+    ("p", "view in pager pane"),
     ("E", "expand all 1 level"),
     ("C", "collapse all"),
     ("r", "refresh"),
@@ -152,6 +153,13 @@ impl App {
         }
     }
 
+    fn view_file(&mut self) {
+        let row = self.current();
+        if !row.is_dir {
+            tmux::view(&row.path);
+        }
+    }
+
     fn open_file(&mut self, in_window: bool) {
         let row = self.current();
         if row.is_dir {
@@ -203,6 +211,7 @@ impl App {
             KeyCode::Char('?') => self.help = true,
             KeyCode::Char('o') => self.open_file(false),
             KeyCode::Char('O') => self.open_file(true),
+            KeyCode::Char('p') => self.view_file(),
             KeyCode::Char('r') => self.refresh(),
             KeyCode::Char('.') => {
                 let path = self.current().path.clone();

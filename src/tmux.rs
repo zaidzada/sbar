@@ -27,34 +27,75 @@ fn vim_escape(s: &str) -> String {
     out
 }
 
+/// The id and current command of the pane to the right of ours.
+fn right_pane() -> Option<(String, String)> {
+    let out = tmux(&["display", "-p", "-t", "{right-of}", "#{pane_id} #{pane_current_command}"])?;
+    let (id, cmd) = out.split_once(' ')?;
+    Some((id.to_string(), cmd.to_string()))
+}
+
+/// Type `cmd` into the shell in pane `id`, run it and focus the pane.
+fn run_in(id: &str, cmd: &str) {
+    tmux(&["send-keys", "-t", id, "-l", cmd]);
+    tmux(&["send-keys", "-t", id, "Enter"]);
+    tmux(&["select-pane", "-t", id]);
+}
+
+/// Run `prog` on `path` in a new tmux window named after the file.
+fn new_window(prog: &str, path: &Path) {
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    tmux(&["new-window", "-n", &name, &format!("{prog} {}", sh_quote(&path.to_string_lossy()))]);
+}
+
 /// Open `path` in the pane to the right of ours. If that pane is already
 /// running vim, use `:e`; if it's a shell, type the command; with no pane to
 /// the right, open a new window named after the file. Focus moves to wherever
 /// the file was opened.
 pub fn open(path: &Path) {
     let p = path.to_string_lossy();
-    let right = tmux(&["display", "-p", "-t", "{right-of}", "#{pane_id} #{pane_current_command}"])
-        .filter(|s| !s.is_empty());
-    match right.as_deref().and_then(|s| s.split_once(' ')) {
-        Some((id, cmd)) if EDITORS.contains(&cmd) => {
-            tmux(&["send-keys", "-t", id, "Escape"]);
-            tmux(&["send-keys", "-t", id, "-l", &format!(":e {}", vim_escape(&p))]);
-            tmux(&["send-keys", "-t", id, "Enter"]);
-            tmux(&["select-pane", "-t", id]);
+    match right_pane() {
+        Some((id, cmd)) if EDITORS.contains(&cmd.as_str()) => {
+            tmux(&["send-keys", "-t", &id, "Escape"]);
+            tmux(&["send-keys", "-t", &id, "-l", &format!(":e {}", vim_escape(&p))]);
+            tmux(&["send-keys", "-t", &id, "Enter"]);
+            tmux(&["select-pane", "-t", &id]);
         }
-        Some((id, _)) => {
-            tmux(&["send-keys", "-t", id, "-l", &format!("vim {}", sh_quote(&p))]);
-            tmux(&["send-keys", "-t", id, "Enter"]);
-            tmux(&["select-pane", "-t", id]);
-        }
+        Some((id, _)) => run_in(&id, &format!("vim {}", sh_quote(&p))),
         None => open_in_window(path),
     }
 }
 
 /// Open `path` in vim in a new tmux window named after the file.
 pub fn open_in_window(path: &Path) {
-    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    tmux(&["new-window", "-n", &name, &format!("vim {}", sh_quote(&path.to_string_lossy()))]);
+    new_window("vim", path);
+}
+
+/// The pager command: `$PAGER`, or `less -R` when it's unset or empty.
+fn pager() -> String {
+    std::env::var("PAGER").ok().filter(|p| !p.trim().is_empty()).unwrap_or_else(|| "less -R".into())
+}
+
+/// The program name a pane running `cmd` reports: `/usr/bin/less -R` is `less`.
+fn program(cmd: &str) -> &str {
+    let first = cmd.split_whitespace().next().unwrap_or_default();
+    first.rsplit('/').next().unwrap_or(first)
+}
+
+/// View `path` in the pager in the pane to the right of ours. If that pane is
+/// already running the pager, quit it first; if it's a shell, type the
+/// command. A pane busy in vim is left alone, and with no pane to the right
+/// the file opens in a new window. Focus moves to wherever the file was opened.
+pub fn view(path: &Path) {
+    let pager = pager();
+    match right_pane() {
+        Some((id, cmd)) if !EDITORS.contains(&cmd.as_str()) => {
+            if cmd == program(&pager) {
+                tmux(&["send-keys", "-t", &id, "q"]);
+            }
+            run_in(&id, &format!("{pager} {}", sh_quote(&path.to_string_lossy())));
+        }
+        _ => new_window(&pager, path),
+    }
 }
 
 /// The background of tmux's `mode-style` (its copy-mode selection), with
@@ -115,5 +156,12 @@ mod tests {
         assert_eq!(parse_colour("colour240"), Some(Color::Indexed(240)));
         assert_eq!(parse_colour("yellow"), Some(Color::Yellow));
         assert_eq!(parse_colour("default"), None);
+    }
+
+    #[test]
+    fn pager_program() {
+        assert_eq!(program("less -R"), "less");
+        assert_eq!(program("/usr/bin/less"), "less");
+        assert_eq!(program("bat --paging=always"), "bat");
     }
 }

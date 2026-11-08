@@ -36,6 +36,7 @@ Press `?` in sbar to see this list.
 | `Enter` | toggle directory / open file |
 | `o` | open file in vim in the pane to the right |
 | `O` | open file in vim in a new tmux window named after the file |
+| `p` | view file in `$PAGER` (default `less -R`) in the pane to the right |
 | `E` | expand all visible folders one level |
 | `C` | collapse all folders |
 | `r` | refresh |
@@ -58,6 +59,8 @@ Click selects a row and toggles a folder, double-click opens a file, and the whe
 Focus then moves to the pane (or window) holding the file.
 
 `O` always opens a new window named after the file.
+
+`p` views the file in `$PAGER`, or `less -R` if it is unset, in the pane to the right. If that pane is already running the pager, sbar quits it first; if it is running vim, or there is no pane to the right, the file opens in a new window instead.
 
 ## Config
 
