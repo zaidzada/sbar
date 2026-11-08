@@ -1,3 +1,4 @@
+mod config;
 mod tmux;
 mod tree;
 
@@ -16,6 +17,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph};
 use ratatui::{DefaultTerminal, Frame};
 
+use config::Config;
 use tree::{Node, Row};
 
 const KEYS: [(&str, &str); 20] = [
@@ -42,6 +44,7 @@ const KEYS: [(&str, &str); 20] = [
 ];
 
 struct App {
+    config: Config,
     root: Node,
     rows: Vec<Row>,
     cursor: usize,
@@ -54,10 +57,10 @@ struct App {
 }
 
 impl App {
-    fn new(dir: PathBuf) -> Self {
+    fn new(dir: PathBuf, config: Config) -> Self {
         let mut root = Node::new(dir, true);
-        root.expand();
-        let mut app = App { root, rows: Vec::new(), cursor: 0, show_hidden: true, list: ListState::default(), list_height: 0, last_click: None, help: false, quit: false };
+        root.expand(&config.ignore);
+        let mut app = App { config, root, rows: Vec::new(), cursor: 0, show_hidden: true, list: ListState::default(), list_height: 0, last_click: None, help: false, quit: false };
         app.rebuild();
         app
     }
@@ -84,7 +87,7 @@ impl App {
     fn set_expanded(&mut self, expanded: bool) {
         let path = self.current().path.clone();
         if let Some(n) = self.root.find_mut(&path) {
-            if expanded { n.expand() } else { n.collapse() }
+            if expanded { n.expand(&self.config.ignore) } else { n.collapse() }
         }
         self.rebuild();
     }
@@ -115,7 +118,7 @@ impl App {
 
     fn expand_level(&mut self) {
         let path = self.current().path.clone();
-        self.root.expand_next_level(self.show_hidden);
+        self.root.expand_next_level(self.show_hidden, &self.config.ignore);
         self.rebuild();
         self.select_path(&path);
     }
@@ -161,7 +164,7 @@ impl App {
 
     fn refresh(&mut self) {
         let path = self.current().path.clone();
-        self.root.load();
+        self.root.load(&self.config.ignore);
         self.rebuild();
         self.select_path(&path);
     }
@@ -314,7 +317,8 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()> {
 fn main() -> io::Result<()> {
     let arg = std::env::args().nth(1).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
     let dir = arg.canonicalize()?;
-    let mut app = App::new(dir);
+    let config = config::load().map_err(io::Error::other)?;
+    let mut app = App::new(dir, config);
     let mut terminal = ratatui::init();
     // ratatui's panic hook restores the terminal but knows nothing about mouse capture
     let prev_hook = std::panic::take_hook();

@@ -28,14 +28,16 @@ impl Node {
         Node { path, name, is_dir, expanded: false, loaded: false, children: Vec::new() }
     }
 
-    /// (Re)read this directory, keeping the state of children that still exist.
-    pub fn load(&mut self) {
+    /// (Re)read this directory, skipping names in `ignore` and keeping the
+    /// state of children that still exist.
+    pub fn load(&mut self, ignore: &[String]) {
         let mut old: HashMap<String, Node> =
             std::mem::take(&mut self.children).into_iter().map(|n| (n.name.clone(), n)).collect();
         let mut entries: Vec<(String, PathBuf, bool)> = fs::read_dir(&self.path)
             .into_iter()
             .flatten()
             .flatten()
+            .filter(|e| !ignore.iter().any(|i| *i == *e.file_name().to_string_lossy()))
             .map(|e| {
                 // file_type() doesn't follow symlinks, so symlinked dirs can't cause loops
                 let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
@@ -51,7 +53,7 @@ impl Node {
                     _ => Node::new(path, is_dir),
                 };
                 if n.is_dir && n.expanded {
-                    n.load();
+                    n.load(ignore);
                 }
                 n
             })
@@ -59,25 +61,25 @@ impl Node {
         self.loaded = true;
     }
 
-    pub fn expand(&mut self) {
+    pub fn expand(&mut self, ignore: &[String]) {
         if self.is_dir {
             if !self.loaded {
-                self.load();
+                self.load(ignore);
             }
             self.expanded = true;
         }
     }
 
     /// Expand every collapsed directory among the visible rows, revealing one more level.
-    pub fn expand_next_level(&mut self, show_hidden: bool) {
+    pub fn expand_next_level(&mut self, show_hidden: bool, ignore: &[String]) {
         for c in &mut self.children {
             if !show_hidden && c.name.starts_with('.') {
                 continue;
             }
             if c.expanded {
-                c.expand_next_level(show_hidden);
+                c.expand_next_level(show_hidden, ignore);
             } else {
-                c.expand();
+                c.expand(ignore);
             }
         }
     }
@@ -153,24 +155,26 @@ mod tests {
         fs::write(dir.join("a/x"), "").unwrap();
         fs::write(dir.join("b"), "").unwrap();
         fs::write(dir.join(".hidden"), "").unwrap();
+        fs::write(dir.join(".DS_Store"), "").unwrap();
+        let ignore = [".DS_Store".to_string()];
 
         let mut root = Node::new(dir.clone(), true);
-        root.expand();
+        root.expand(&ignore);
         let names = |r: &[Row]| r.iter().map(|r| format!("{}{}", r.prefix, r.name)).collect::<Vec<_>>();
         assert_eq!(&names(&root.rows(false))[1..], ["├── a", "└── b"]);
 
-        root.find_mut(&dir.join("a")).unwrap().expand();
+        root.find_mut(&dir.join("a")).unwrap().expand(&ignore);
         assert_eq!(&names(&root.rows(false))[1..], ["├── a", "│   └── x", "└── b"]);
-        assert_eq!(root.rows(true).len(), 5);
+        assert_eq!(root.rows(true).len(), 5); // .hidden shown, .DS_Store ignored
 
         root.find_mut(&dir.join("a")).unwrap().collapse();
         assert_eq!(root.rows(false).len(), 3);
 
         fs::create_dir_all(dir.join("a/deep/deeper")).unwrap();
-        root.find_mut(&dir.join("a")).unwrap().load();
-        root.expand_next_level(false);
+        root.find_mut(&dir.join("a")).unwrap().load(&ignore);
+        root.expand_next_level(false, &ignore);
         assert_eq!(root.rows(false).len(), 5); // a expanded, deep shown but collapsed
-        root.expand_next_level(false);
+        root.expand_next_level(false, &ignore);
         assert_eq!(root.rows(false).len(), 6); // deep expanded, deeper shown
 
         root.collapse_all();

@@ -59,13 +59,25 @@ Focus then moves to the pane (or window) holding the file.
 
 `O` always opens a new window named after the file.
 
+## Config
+
+sbar reads `~/.config/sbar/config.toml` (or `$XDG_CONFIG_HOME/sbar/config.toml`) if it exists:
+
+```toml
+# Names of files and directories to leave out of the tree.
+# Default: [".DS_Store"]. Setting it replaces the default.
+ignore = [".DS_Store", ".git", "target", "node_modules"]
+```
+
+Names are matched exactly against each entry's file name. An unknown key or invalid TOML is an error at startup.
+
 ## Development
 
 ```sh
 cargo test
 ```
 
-Layout: `src/tree.rs` (tree model, fold state, guide prefixes), `src/tmux.rs` (opening files via the `tmux` CLI), `src/main.rs` (state, keys, mouse, rendering).
+Layout: `src/config.rs` (config file), `src/tree.rs` (tree model, fold state, guide prefixes), `src/tmux.rs` (opening files via the `tmux` CLI), `src/main.rs` (state, keys, mouse, rendering).
 
 ## Roadmap
 

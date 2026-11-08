@@ -1,8 +1,8 @@
 # TODO
 
 ## Config file
-- `~/.config/sbar/config.toml` (`serde` + `toml`)
-- Ignore list (`.git`, `target`, `node_modules`, ...), optionally honoring `.gitignore` via the `ignore` crate
+- Done: `~/.config/sbar/config.toml` with an exact-name `ignore` list (default `[".DS_Store"]`)
+- Glob patterns in the ignore list
 - Default sort mode, show-hidden default, sidebar width
 - Keybindings and the open command (editor, per file type)
 - Shared by the features below, so it likely comes first
