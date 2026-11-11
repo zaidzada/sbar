@@ -39,8 +39,10 @@ impl Node {
             .flatten()
             .filter(|e| !ignore.iter().any(|i| *i == *e.file_name().to_string_lossy()))
             .map(|e| {
-                // file_type() doesn't follow symlinks, so symlinked dirs can't cause loops
-                let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
+                // fs::metadata follows symlinks, so a link to a directory is a directory
+                // (a broken link is a file). Loading is lazy, so a link cycle only
+                // goes as deep as the user unfolds it.
+                let is_dir = fs::metadata(e.path()).map(|m| m.is_dir()).unwrap_or(false);
                 (e.file_name().to_string_lossy().into_owned(), e.path(), is_dir)
             })
             .collect();
@@ -179,6 +181,35 @@ mod tests {
 
         root.collapse_all();
         assert_eq!(&names(&root.rows(false))[1..], ["├── a", "└── b"]);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn follows_symlinks() {
+        use std::os::unix::fs::symlink;
+        let dir = std::env::temp_dir().join(format!("sbar-test-links-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("real")).unwrap();
+        fs::write(dir.join("real/x"), "").unwrap();
+        symlink(dir.join("real"), dir.join("link")).unwrap();
+        symlink(&dir, dir.join("real/up")).unwrap(); // cycle back to the root
+        symlink(dir.join("missing"), dir.join("broken")).unwrap();
+
+        let mut root = Node::new(dir.clone(), true);
+        root.expand(&[]);
+        let names = |r: &[Row]| r.iter().map(|r| format!("{}{}", r.prefix, r.name)).collect::<Vec<_>>();
+        // link and real are directories (sorted first); the broken link is a file
+        assert_eq!(&names(&root.rows(false))[1..], ["├── link", "├── real", "└── broken"]);
+
+        let link = root.find_mut(&dir.join("link")).unwrap();
+        link.expand(&[]);
+        assert_eq!(link.rows(false).iter().map(|r| r.name.as_str()).collect::<Vec<_>>(), ["link", "up", "x"]);
+
+        // following the cycle only goes as deep as it is unfolded
+        root.find_mut(&dir.join("link/up")).unwrap().expand(&[]);
+        root.load(&[]);
+        assert_eq!(root.rows(false).len(), 1 + 3 + 2 + 3);
         fs::remove_dir_all(&dir).unwrap();
     }
 }

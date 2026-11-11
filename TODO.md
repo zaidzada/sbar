@@ -25,7 +25,7 @@
 
 ## `/` filter
 - Filter mode on `/`: query shown in the footer, Backspace edits, `Enter` accepts, `Esc` clears
-- Search the whole tree (loading everything below the root), skipping the ignore list
+- Search the whole tree (loading everything below the root), skipping the ignore list; symlinked dirs are followed, so guard against link cycles (track canonical paths)
 - Matches keep their parent folders visible so the tree guides still make sense
 - Start with smart-case substring matching on filenames; maybe full relative paths and fuzzy matching (`nucleo`) later
 - Highlight matches
