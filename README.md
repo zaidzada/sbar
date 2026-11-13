@@ -1,6 +1,6 @@
 # sbar
 
-A minimal, `tree`-style file browser meant to live in a tmux sidebar pane. Navigate the tree, fold and unfold directories, and open files in vim in the pane to the right (or in a new tmux window).
+A minimal, `tree`-style file browser meant to live in a tmux sidebar pane. Navigate the tree, fold and unfold directories, and open files in your editor in the pane to the right (or in a new tmux window).
 
 Written in Rust with [ratatui](https://ratatui.rs).
 
@@ -35,9 +35,13 @@ Press `?` in sbar to see this list.
 | `Space` | toggle directory / preview file in a tmux popup |
 | `Tab` | toggle fold |
 | `Enter` | toggle directory / open file |
-| `o` | open file in vim in the pane to the right |
-| `O` | open file in vim in a new tmux window named after the file |
+| `o` | open file in `$EDITOR` (default `vim`) in the pane to the right |
+| `O` | open file in `$EDITOR` in a new tmux window named after the file |
+| `e` | edit file in `$EDITOR` in a tmux popup |
 | `p` | view file in `$PAGER` (default `less -R`) in the pane to the right |
+| `d` | show `git diff HEAD` for the file or directory in a tmux popup |
+| `D` | show `git diff HEAD` in a new tmux window |
+| `c` | copy the absolute path to the tmux buffer and system clipboard |
 | `E` | expand all visible folders one level |
 | `C` | collapse all folders |
 | `r` | refresh |
@@ -73,14 +77,20 @@ Markers after the name follow `ls -F`, except that directories keep their fold a
 `o`, `Enter` and double-click on a file target the pane to the right of sbar:
 
 - if it is running `vim`/`nvim`/`vi`, sbar sends `:e <file>`
-- if it is a shell, sbar types `vim '<file>'` and presses Enter
-- if there is no pane to the right, the file opens in a new window
+- if it is a shell, sbar types `$EDITOR '<file>'` (`vim` if `$EDITOR` is unset) and presses Enter
+- if it is busy in another editor, or there is no pane to the right, the file opens in a new window
 
 Focus then moves to the pane (or window) holding the file.
 
 `O` always opens a new window named after the file.
 
-`p` views the file in `$PAGER`, or `less -R` if it is unset, in the pane to the right. If that pane is already running the pager, sbar quits it first; if it is running vim, or there is no pane to the right, the file opens in a new window instead.
+`p` views the file in `$PAGER`, or `less -R` if it is unset, in the pane to the right. If that pane is already running the pager, sbar quits it first; if it is running an editor, or there is no pane to the right, the file opens in a new window instead.
+
+`e` edits the file in `$EDITOR` in a popup like `Space`'s, for a quick change without leaving the sidebar; the popup closes when you quit the editor.
+
+`d` shows the staged and unstaged changes to the selected file, or to everything below a directory, as `git diff HEAD` piped into the pager, in a popup like `Space`'s. `D` shows the same in a new window. With nothing to show, or outside a git repository, the footer says so instead. Untracked files have no diff.
+
+`c` copies the selected path into a tmux paste buffer (`set-buffer -w`), which tmux passes on to the system clipboard when its `set-clipboard` option is `on` or `external` (the default).
 
 `Space` on a file previews it in a tmux popup covering 80% of the window, running `less` by default; quit the previewer to close the popup. The command and its arguments are set under `[preview]` in the config.
 

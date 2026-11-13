@@ -20,7 +20,7 @@ use ratatui::{DefaultTerminal, Frame};
 use config::Config;
 use tree::{Kind, Node, Row};
 
-const KEYS: [(&str, &str); 22] = [
+const KEYS: [(&str, &str); 26] = [
     ("j / ↓", "move down"),
     ("k / ↑", "move up"),
     ("g / Home", "go to top"),
@@ -31,9 +31,13 @@ const KEYS: [(&str, &str); 22] = [
     ("Space", "toggle dir / preview"),
     ("Tab", "toggle fold"),
     ("Enter", "toggle dir / open"),
-    ("o", "open in vim pane"),
+    ("o", "open in editor pane"),
     ("O", "open in new window"),
+    ("e", "edit in popup"),
     ("p", "view in pager pane"),
+    ("d", "git diff in popup"),
+    ("D", "git diff in new window"),
+    ("c", "copy path"),
     ("E", "expand all 1 level"),
     ("C", "collapse all"),
     ("r", "refresh"),
@@ -56,6 +60,8 @@ struct App {
     last_click: Option<(Instant, usize)>,
     help: bool,
     quit: bool,
+    /// Shown in the footer until the next key or click.
+    message: Option<String>,
     /// Background of the selected row, from tmux's `mode-style`.
     selection: Color,
 }
@@ -64,7 +70,7 @@ impl App {
     fn new(dir: PathBuf, config: Config) -> Self {
         let mut root = Node::new(dir);
         root.expand(&config.ignore);
-        let mut app = App { config, root, rows: Vec::new(), cursor: 0, show_hidden: true, list: ListState::default(), list_height: 0, last_click: None, help: false, quit: false, selection: selection_bg() };
+        let mut app = App { config, root, rows: Vec::new(), cursor: 0, show_hidden: true, list: ListState::default(), list_height: 0, last_click: None, help: false, quit: false, message: None, selection: selection_bg() };
         app.rebuild();
         app
     }
@@ -164,6 +170,13 @@ impl App {
         }
     }
 
+    fn edit_file(&mut self) {
+        let row = self.current();
+        if !row.is_dir {
+            tmux::edit(&row.path);
+        }
+    }
+
     fn view_file(&mut self) {
         let row = self.current();
         if !row.is_dir {
@@ -183,6 +196,17 @@ impl App {
         }
     }
 
+    fn diff(&mut self, in_window: bool) {
+        if let Err(msg) = tmux::diff(&self.current().path, in_window) {
+            self.message = Some(msg);
+        }
+    }
+
+    fn copy_path(&mut self) {
+        let ok = tmux::copy(&self.current().path);
+        self.message = Some(if ok { "copied path" } else { "copy failed" }.into());
+    }
+
     fn refresh(&mut self) {
         let path = self.current().path.clone();
         self.root.load(&self.config.ignore);
@@ -191,6 +215,7 @@ impl App {
     }
 
     fn on_key(&mut self, key: KeyEvent) {
+        self.message = None;
         if self.help {
             if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
                 self.quit = true;
@@ -223,7 +248,11 @@ impl App {
             KeyCode::Char('?') => self.help = true,
             KeyCode::Char('o') => self.open_file(false),
             KeyCode::Char('O') => self.open_file(true),
+            KeyCode::Char('e') => self.edit_file(),
             KeyCode::Char('p') => self.view_file(),
+            KeyCode::Char('d') => self.diff(false),
+            KeyCode::Char('D') => self.diff(true),
+            KeyCode::Char('c') => self.copy_path(),
             KeyCode::Char('r') => self.refresh(),
             KeyCode::Char('.') => {
                 let path = self.current().path.clone();
@@ -236,6 +265,9 @@ impl App {
     }
 
     fn on_mouse(&mut self, m: MouseEvent) {
+        if matches!(m.kind, MouseEventKind::Down(_)) {
+            self.message = None;
+        }
         if self.help {
             if matches!(m.kind, MouseEventKind::Down(_)) {
                 self.help = false;
@@ -301,7 +333,8 @@ impl App {
         let [list_area, footer_area] = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(area);
         self.list_height = list_area.height;
         frame.render_stateful_widget(list, list_area, &mut self.list);
-        frame.render_widget(Paragraph::new("? help").style(Style::new().fg(Color::DarkGray)), footer_area);
+        let footer = self.message.as_deref().unwrap_or("? help");
+        frame.render_widget(Paragraph::new(footer).style(Style::new().fg(Color::DarkGray)), footer_area);
         if self.help {
             draw_help(frame, area);
         }
