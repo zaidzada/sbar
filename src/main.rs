@@ -20,7 +20,7 @@ use ratatui::{DefaultTerminal, Frame};
 use config::Config;
 use tree::{Node, Row};
 
-const KEYS: [(&str, &str); 21] = [
+const KEYS: [(&str, &str); 22] = [
     ("j / ↓", "move down"),
     ("k / ↑", "move up"),
     ("g / Home", "go to top"),
@@ -28,7 +28,8 @@ const KEYS: [(&str, &str); 21] = [
     ("^d / ^u", "down / up 10 rows"),
     ("h / ←", "fold / go to parent"),
     ("l / →", "unfold / step in"),
-    ("Space/Tab", "toggle fold"),
+    ("Space", "toggle dir / preview"),
+    ("Tab", "toggle fold"),
     ("Enter", "toggle dir / open"),
     ("o", "open in vim pane"),
     ("O", "open in new window"),
@@ -153,6 +154,16 @@ impl App {
         }
     }
 
+    fn preview(&mut self) {
+        let row = self.current();
+        if row.is_dir {
+            self.toggle();
+        } else {
+            let p = &self.config.preview;
+            tmux::preview(&p.command, &p.args, &row.path);
+        }
+    }
+
     fn view_file(&mut self) {
         let row = self.current();
         if !row.is_dir {
@@ -204,7 +215,8 @@ impl App {
             KeyCode::Char('G') | KeyCode::End => self.cursor = self.rows.len() - 1,
             KeyCode::Char('h') | KeyCode::Left => self.fold(),
             KeyCode::Char('l') | KeyCode::Right => self.unfold(),
-            KeyCode::Char(' ') | KeyCode::Tab => self.toggle(),
+            KeyCode::Char(' ') => self.preview(),
+            KeyCode::Tab => self.toggle(),
             KeyCode::Enter => self.activate(),
             KeyCode::Char('E') => self.expand_level(),
             KeyCode::Char('C') => self.collapse_all(),

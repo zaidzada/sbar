@@ -98,6 +98,21 @@ pub fn view(path: &Path) {
     }
 }
 
+/// The shell command for previewing `path`: every word quoted, file last.
+fn preview_cmd(command: &str, args: &[String], path: &Path) -> String {
+    let mut words = vec![sh_quote(command)];
+    words.extend(args.iter().map(|a| sh_quote(a)));
+    words.push(sh_quote(&path.to_string_lossy()));
+    words.join(" ")
+}
+
+/// Preview `path` with `command args... path` in a tmux popup over the current
+/// pane, titled with the file name. The popup closes when the command exits.
+pub fn preview(command: &str, args: &[String], path: &Path) {
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    tmux(&["display-popup", "-E", "-w", "80%", "-h", "80%", "-T", &format!(" {name} "), &preview_cmd(command, args, path)]);
+}
+
 /// The background of tmux's `mode-style` (its copy-mode selection), with
 /// theme colours like `themedarkgrey` resolved for the current light/dark
 /// theme. `None` outside tmux or when the style sets no usable background.
@@ -163,5 +178,11 @@ mod tests {
         assert_eq!(program("less -R"), "less");
         assert_eq!(program("/usr/bin/less"), "less");
         assert_eq!(program("bat --paging=always"), "bat");
+    }
+
+    #[test]
+    fn preview_command() {
+        assert_eq!(preview_cmd("less", &[], Path::new("/a/b c.txt")), "'less' '/a/b c.txt'");
+        assert_eq!(preview_cmd("bat", &["--style=plain".into()], Path::new("it's")), r"'bat' '--style=plain' 'it'\''s'");
     }
 }

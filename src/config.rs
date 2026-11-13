@@ -8,11 +8,28 @@ use serde::Deserialize;
 pub struct Config {
     /// File and directory names to leave out of the tree.
     pub ignore: Vec<String>,
+    /// How `Space` previews a file in a tmux popup.
+    pub preview: Preview,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Config { ignore: vec![".DS_Store".into()] }
+        Config { ignore: vec![".DS_Store".into()], preview: Preview::default() }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Preview {
+    /// Program run on the file, found on `$PATH`.
+    pub command: String,
+    /// Arguments passed before the file name.
+    pub args: Vec<String>,
+}
+
+impl Default for Preview {
+    fn default() -> Self {
+        Preview { command: "less".into(), args: Vec::new() }
     }
 }
 
@@ -44,5 +61,16 @@ mod tests {
         assert_eq!(toml::from_str::<Config>("").unwrap().ignore, [".DS_Store"]);
         assert_eq!(toml::from_str::<Config>("ignore = [\".git\"]").unwrap().ignore, [".git"]);
         assert!(toml::from_str::<Config>("ignored = []").is_err());
+    }
+
+    #[test]
+    fn parse_preview() {
+        let c = toml::from_str::<Config>("").unwrap();
+        assert_eq!((c.preview.command.as_str(), c.preview.args.len()), ("less", 0));
+        let c = toml::from_str::<Config>("[preview]\ncommand = \"bat\"\nargs = [\"--paging=always\"]").unwrap();
+        assert_eq!((c.preview.command.as_str(), c.preview.args.as_slice()), ("bat", ["--paging=always".to_string()].as_slice()));
+        let c = toml::from_str::<Config>("[preview]\nargs = [\"-N\"]").unwrap();
+        assert_eq!(c.preview.command, "less");
+        assert!(toml::from_str::<Config>("[preview]\ncmd = \"bat\"").is_err());
     }
 }
