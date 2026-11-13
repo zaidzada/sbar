@@ -85,7 +85,9 @@ Inside a git work tree, a column to the left of the tree shows each entry's stat
 
 and the colour says whether it is staged, as `git status` colours it: green when all of the change is in the index, red when there is anything left to stage (so a file with both staged and unstaged edits is red, and `?` is always red).
 
-A directory shows the most important change below it (`U` over `M` over `A` over `?`), green only if everything below it is staged. Everything inside an untracked directory is `?`. Ignored files are left unmarked. The status is re-read at startup, on `r`, when the sidebar regains focus, and after `e` closes. Outside a work tree there is no gutter; inside one, only the repository holding sbar's root is read, so nested repositories and submodules aren't marked.
+A directory shows the most important change below it (`U` over `M` over `A` over `?`), green only if everything below it is staged. Everything inside an untracked directory is `?`. Ignored files are left unmarked. The footer shows the current branch (`HEAD` when detached), with `↑n` for commits ahead of its upstream and `↓n` for commits behind, as of your last fetch; sbar never fetches. In a narrow pane the branch name is shortened first.
+
+The status and branch are re-read at startup, on `r`, when the sidebar regains focus, and after `e` closes. Outside a work tree there is no gutter; inside one, only the repository holding sbar's root is read, so nested repositories and submodules aren't marked.
 
 ## How files are opened
 

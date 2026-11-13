@@ -352,7 +352,10 @@ impl App {
         let [list_area, footer_area] = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(area);
         self.list_height = list_area.height;
         frame.render_stateful_widget(list, list_area, &mut self.list);
-        let footer = self.message.as_deref().unwrap_or("? help");
+        let footer = match &self.message {
+            Some(m) => Line::from(m.as_str()),
+            None => footer_line(self.git.as_ref().map(|g| &g.branch), footer_area.width),
+        };
         frame.render_widget(Paragraph::new(footer).style(Style::new().fg(Color::DarkGray)), footer_area);
         if self.help {
             draw_help(frame, area);
@@ -390,6 +393,35 @@ fn mark_style(mark: git::Mark) -> Style {
         _ if mark.staged => Style::new().fg(Color::Green),
         _ => Style::new().fg(Color::Red),
     }
+}
+
+/// The footer: the branch and its ahead/behind counts on the left, the help
+/// hint on the right. The branch name gives way first when the pane is narrow.
+fn footer_line(branch: Option<&git::Branch>, width: u16) -> Line<'static> {
+    const HELP: &str = "? help";
+    let Some(b) = branch else { return Line::from(HELP) };
+    let mut counts = String::new();
+    if b.ahead > 0 {
+        counts.push_str(&format!(" ↑{}", b.ahead));
+    }
+    if b.behind > 0 {
+        counts.push_str(&format!(" ↓{}", b.behind));
+    }
+    let width = width as usize;
+    let room = width.saturating_sub(HELP.len() + 1 + counts.chars().count());
+    let name: String = if b.name.chars().count() <= room {
+        b.name.clone()
+    } else {
+        b.name.chars().take(room.saturating_sub(1)).chain((room > 0).then_some('…')).collect()
+    };
+    let pad = width.saturating_sub(name.chars().count() + counts.chars().count() + HELP.len());
+    Line::from(vec![
+        Span::raw(name),
+        // the counts in the terminal's own colour, so they stand out from the grey
+        Span::styled(counts, Style::new().fg(Color::Reset)),
+        Span::raw(" ".repeat(pad)),
+        Span::raw(HELP),
+    ])
 }
 
 fn draw_help(frame: &mut Frame, area: Rect) {
