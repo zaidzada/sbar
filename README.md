@@ -49,6 +49,25 @@ Press `?` in sbar to see this list.
 
 Click selects a row and toggles a folder, double-click opens a file, and the wheel scrolls. Requires `set -g mouse on` in tmux.
 
+## Colours and markers
+
+Names are coloured like GNU `ls` with its default `LS_COLORS`, using the terminal's ANSI palette:
+
+| Type | Colour | Marker |
+| --- | --- | --- |
+| directory | bold blue | `▸` / `▾` |
+| symlink | bold cyan | `@` |
+| broken symlink | bold red | `@` |
+| executable | bold green | `*` |
+| named pipe | yellow | `\|` |
+| socket | bold magenta | `=` |
+| block / character device | bold yellow | |
+| setuid / setgid file | white on red / black on yellow | `*` |
+| sticky / other-writable / both directory | white on blue / blue on green / black on green | `▸` / `▾` |
+| regular file | terminal default | |
+
+Markers after the name follow `ls -F`, except that directories keep their fold arrow instead of a trailing `/`. A symlink to a directory is cyan with `@`, and still folds like a directory. Dotfiles are dimmed.
+
 ## How files are opened
 
 `o`, `Enter` and double-click on a file target the pane to the right of sbar:

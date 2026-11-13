@@ -18,7 +18,7 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragra
 use ratatui::{DefaultTerminal, Frame};
 
 use config::Config;
-use tree::{Node, Row};
+use tree::{Kind, Node, Row};
 
 const KEYS: [(&str, &str); 22] = [
     ("j / ↓", "move down"),
@@ -62,7 +62,7 @@ struct App {
 
 impl App {
     fn new(dir: PathBuf, config: Config) -> Self {
-        let mut root = Node::new(dir, true);
+        let mut root = Node::new(dir);
         root.expand(&config.ignore);
         let mut app = App { config, root, rows: Vec::new(), cursor: 0, show_hidden: true, list: ListState::default(), list_height: 0, last_click: None, help: false, quit: false, selection: selection_bg() };
         app.rebuild();
@@ -276,20 +276,22 @@ impl App {
             .iter()
             .enumerate()
             .map(|(i, r)| {
-                let (marker, mut style) = if r.is_dir {
-                    (if r.expanded { "▾ " } else { "▸ " }, Style::new().fg(Color::Blue).add_modifier(Modifier::BOLD))
-                } else {
-                    ("", Style::new())
-                };
+                let fold = if !r.is_dir { "" } else if r.expanded { "▾ " } else { "▸ " };
+                let mut style = kind_style(r.kind);
+                let mut suffix = Style::new();
                 if i > 0 && r.name.starts_with('.') {
                     style = style.add_modifier(Modifier::DIM);
-                    if !r.is_dir {
+                    suffix = suffix.add_modifier(Modifier::DIM);
+                    if r.kind == Kind::File {
                         style = style.fg(Color::DarkGray);
                     }
                 }
                 ListItem::new(Line::from(vec![
                     Span::styled(r.prefix.clone(), Style::new().fg(Color::DarkGray)),
-                    Span::styled(format!("{marker}{}", r.name), style),
+                    // keep a sticky/setuid background off the fold arrow, as ls would
+                    Span::styled(fold, Style { bg: None, ..style }),
+                    Span::styled(r.name.clone(), style),
+                    Span::styled(r.kind.marker().map(String::from).unwrap_or_default(), suffix),
                 ]))
             })
             .collect();
@@ -303,6 +305,28 @@ impl App {
         if self.help {
             draw_help(frame, area);
         }
+    }
+}
+
+/// Name colours following the default GNU `ls` `LS_COLORS`.
+fn kind_style(kind: Kind) -> Style {
+    let bold = |c| Style::new().fg(c).add_modifier(Modifier::BOLD);
+    let on = |fg, bg| Style::new().fg(fg).bg(bg);
+    match kind {
+        Kind::File => Style::new(),
+        Kind::Dir => bold(Color::Blue),
+        Kind::Symlink => bold(Color::Cyan),
+        Kind::BrokenLink => bold(Color::Red),
+        Kind::Exec => bold(Color::Green),
+        Kind::Fifo => Style::new().fg(Color::Yellow),
+        Kind::Socket => bold(Color::Magenta),
+        Kind::Device => bold(Color::Yellow),
+        // ratatui's Gray is ANSI 37 ("white"); its White is bright white
+        Kind::Setuid => on(Color::Gray, Color::Red),
+        Kind::Setgid => on(Color::Black, Color::Yellow),
+        Kind::Sticky => on(Color::Gray, Color::Blue),
+        Kind::OtherWritable => on(Color::Blue, Color::Green),
+        Kind::StickyOtherWritable => on(Color::Black, Color::Green),
     }
 }
 
