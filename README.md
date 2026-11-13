@@ -44,7 +44,7 @@ Press `?` in sbar to see this list.
 | `c` | copy the absolute path to the tmux buffer and system clipboard |
 | `E` | expand all visible folders one level |
 | `C` | collapse all folders |
-| `r` | refresh |
+| `r` | refresh the tree and git status |
 | `.` | show / hide dotfiles (shown, dimmed, by default) |
 | `?` | toggle help |
 | `q` / `Esc` | quit |
@@ -71,6 +71,21 @@ Names are coloured like GNU `ls` with its default `LS_COLORS`, using the termina
 | regular file | terminal default | |
 
 Markers after the name follow `ls -F`, except that directories keep their fold arrow instead of a trailing `/`. A symlink to a directory is cyan with `@`, and still folds like a directory. Dotfiles are dimmed.
+
+## Git gutter
+
+Inside a git work tree, a column to the left of the tree shows each entry's status, from `git status --porcelain`. The letter says what changed:
+
+| Mark | Meaning |
+| --- | --- |
+| `M` | modified or deleted |
+| `A` | added, or renamed or copied to here |
+| `?` | untracked |
+| `U` | merge conflict (bold magenta) |
+
+and the colour says whether it is staged, as `git status` colours it: green when all of the change is in the index, red when there is anything left to stage (so a file with both staged and unstaged edits is red, and `?` is always red).
+
+A directory shows the most important change below it (`U` over `M` over `A` over `?`), green only if everything below it is staged. Everything inside an untracked directory is `?`. Ignored files are left unmarked. The status is re-read at startup, on `r`, when the sidebar regains focus, and after `e` closes. Outside a work tree there is no gutter; inside one, only the repository holding sbar's root is read, so nested repositories and submodules aren't marked.
 
 ## How files are opened
 
@@ -118,7 +133,7 @@ Ignore names are matched exactly against each entry's file name. An unknown key 
 cargo test
 ```
 
-Layout: `src/config.rs` (config file), `src/tree.rs` (tree model, fold state, guide prefixes), `src/tmux.rs` (opening files via the `tmux` CLI), `src/main.rs` (state, keys, mouse, rendering).
+Layout: `src/config.rs` (config file), `src/tree.rs` (tree model, fold state, guide prefixes), `src/git.rs` (git status for the gutter), `src/tmux.rs` (opening files via the `tmux` CLI), `src/main.rs` (state, keys, mouse, rendering).
 
 ## Roadmap
 

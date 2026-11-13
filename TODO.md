@@ -18,10 +18,8 @@
 - Sorting lives in `Node::load` in `src/tree.rs`
 
 ## Git status gutter
-- Run `git status --porcelain` and map paths to markers (`M`, `A`, `?`, `!`)
-- Directories inherit a marker if anything below them changed
+- Done: `M`, `A`, `?`, `U` from `git status --porcelain`, green when staged and red when not, rolled up to directories; refreshed on `r`, focus and after `e`
 - Refresh alongside the file watcher
-- Shelling out to `git` is simplest; `git2` is the heavier alternative
 
 ## `/` filter
 - Filter mode on `/`: query shown in the footer, Backspace edits, `Enter` accepts, `Esc` clears

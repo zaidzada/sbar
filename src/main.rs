@@ -1,4 +1,5 @@
 mod config;
+mod git;
 mod tmux;
 mod tree;
 
@@ -40,7 +41,7 @@ const KEYS: [(&str, &str); 26] = [
     ("c", "copy path"),
     ("E", "expand all 1 level"),
     ("C", "collapse all"),
-    ("r", "refresh"),
+    ("r", "refresh tree and git"),
     (".", "toggle dotfiles"),
     ("click", "select, toggle dir"),
     ("dbl-click", "open file"),
@@ -64,13 +65,16 @@ struct App {
     message: Option<String>,
     /// Background of the selected row, from tmux's `mode-style`.
     selection: Color,
+    /// `None` outside a git work tree, which hides the gutter.
+    git: Option<git::Status>,
 }
 
 impl App {
     fn new(dir: PathBuf, config: Config) -> Self {
         let mut root = Node::new(dir);
         root.expand(&config.ignore);
-        let mut app = App { config, root, rows: Vec::new(), cursor: 0, show_hidden: true, list: ListState::default(), list_height: 0, last_click: None, help: false, quit: false, message: None, selection: selection_bg() };
+        let mut app = App { config, root, rows: Vec::new(), cursor: 0, show_hidden: true, list: ListState::default(), list_height: 0, last_click: None, help: false, quit: false, message: None, selection: selection_bg(), git: None };
+        app.refresh_git();
         app.rebuild();
         app
     }
@@ -173,7 +177,9 @@ impl App {
     fn edit_file(&mut self) {
         let row = self.current();
         if !row.is_dir {
+            // the popup blocks until the editor quits, so the file may have changed
             tmux::edit(&row.path);
+            self.refresh_git();
         }
     }
 
@@ -210,8 +216,13 @@ impl App {
     fn refresh(&mut self) {
         let path = self.current().path.clone();
         self.root.load(&self.config.ignore);
+        self.refresh_git();
         self.rebuild();
         self.select_path(&path);
+    }
+
+    fn refresh_git(&mut self) {
+        self.git = git::Status::load(&self.root.path);
     }
 
     fn on_key(&mut self, key: KeyEvent) {
@@ -318,13 +329,21 @@ impl App {
                         style = style.fg(Color::DarkGray);
                     }
                 }
-                ListItem::new(Line::from(vec![
+                let mut spans = Vec::new();
+                if let Some(git) = &self.git {
+                    spans.push(match git.get(&r.path) {
+                        Some(m) => Span::styled(format!("{} ", m.symbol()), mark_style(m)),
+                        None => Span::raw("  "),
+                    });
+                }
+                spans.extend([
                     Span::styled(r.prefix.clone(), Style::new().fg(Color::DarkGray)),
                     // keep a sticky/setuid background off the fold arrow, as ls would
                     Span::styled(fold, Style { bg: None, ..style }),
                     Span::styled(r.name.clone(), style),
                     Span::styled(r.kind.marker().map(String::from).unwrap_or_default(), suffix),
-                ]))
+                ]);
+                ListItem::new(Line::from(spans))
             })
             .collect();
         self.list.select(Some(self.cursor));
@@ -363,6 +382,16 @@ fn kind_style(kind: Kind) -> Style {
     }
 }
 
+/// Gutter colours as `git status` uses them: green for staged, red for
+/// anything left to stage.
+fn mark_style(mark: git::Mark) -> Style {
+    match mark.change {
+        git::Change::Conflict => Style::new().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+        _ if mark.staged => Style::new().fg(Color::Green),
+        _ => Style::new().fg(Color::Red),
+    }
+}
+
 fn draw_help(frame: &mut Frame, area: Rect) {
     let key_w = KEYS.iter().map(|(k, _)| k.chars().count()).max().unwrap_or(0);
     let lines: Vec<Line> = KEYS
@@ -398,6 +427,8 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()> {
         terminal.draw(|f| app.draw(f))?;
         match event::read()? {
             Event::FocusGained => {
+                // files may have changed in the editor pane while we were away
+                app.refresh_git();
                 app.selection = selection_bg();
                 recheck = true;
             }
