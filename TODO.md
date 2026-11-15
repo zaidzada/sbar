@@ -1,7 +1,5 @@
 # TODO
 
-- `E` should not expand . dirs
-
 ## Config file
 - Done: `~/.config/sbar/config.toml` with an exact-name `ignore` list (default `[".DS_Store"]`)
 - Glob patterns in the ignore list

@@ -151,15 +151,18 @@ impl Node {
         }
     }
 
-    /// Expand every collapsed directory among the visible rows, revealing one more level.
+    /// Expand every collapsed directory among the visible rows, revealing one
+    /// more level. Dot directories stay as they are, though one already
+    /// expanded by hand still reveals its next level.
     pub fn expand_next_level(&mut self, show_hidden: bool, ignore: &[String]) {
         for c in &mut self.children {
-            if !show_hidden && c.name.starts_with('.') {
+            let hidden = c.name.starts_with('.');
+            if hidden && !show_hidden {
                 continue;
             }
             if c.expanded {
                 c.expand_next_level(show_hidden, ignore);
-            } else {
+            } else if !hidden {
                 c.expand(ignore);
             }
         }
@@ -261,6 +264,15 @@ mod tests {
 
         root.collapse_all();
         assert_eq!(&names(&root.rows(false))[1..], ["├── a", "└── b"]);
+
+        // dot directories are left collapsed, but continue once opened by hand
+        fs::create_dir_all(dir.join(".dots/inner/x")).unwrap();
+        root.load(&ignore);
+        root.expand_next_level(true, &ignore);
+        assert!(!root.find_mut(&dir.join(".dots")).unwrap().expanded);
+        root.find_mut(&dir.join(".dots")).unwrap().expand(&ignore);
+        root.expand_next_level(true, &ignore);
+        assert!(root.find_mut(&dir.join(".dots/inner")).unwrap().expanded);
         fs::remove_dir_all(&dir).unwrap();
     }
 

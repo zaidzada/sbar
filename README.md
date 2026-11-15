@@ -43,7 +43,7 @@ Press `?` in sbar to see this list.
 | `D` | show `git diff HEAD` in a new tmux window |
 | `s` | stage / unstage the file, or everything below the directory |
 | `c` | copy the absolute path to the tmux buffer and system clipboard |
-| `E` | expand all visible folders one level |
+| `E` | expand all visible folders one level, leaving dot folders closed |
 | `C` | collapse all folders |
 | `r` | refresh the tree and git status |
 | `.` | show / hide dotfiles (shown, dimmed, by default) |
