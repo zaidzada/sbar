@@ -138,6 +138,30 @@ impl Status {
     }
 }
 
+/// Stage `path`, or everything below it for a directory, with `git add`. On
+/// failure, git's complaint (such as not being in a repository).
+pub fn stage(path: &Path) -> Result<(), String> {
+    run_on(path, &["add"])
+}
+
+/// Take `path`, or everything below it, back out of the index. `git reset`
+/// rather than `git restore --staged`, which fails before the first commit.
+pub fn unstage(path: &Path) -> Result<(), String> {
+    run_on(path, &["reset", "-q"])
+}
+
+/// Run `git <args> -- <path>` from the directory holding `path`.
+fn run_on(path: &Path, args: &[&str]) -> Result<(), String> {
+    let dir = if path.is_dir() { path } else { path.parent().unwrap_or(path) };
+    let out = Command::new("git").arg("-C").arg(dir).args(args).arg("--").arg(path).output().map_err(|e| format!("git: {e}"))?;
+    if out.status.success() {
+        return Ok(());
+    }
+    let err = String::from_utf8_lossy(&out.stderr);
+    let line = err.lines().next().unwrap_or("git failed");
+    Err(line.trim_start_matches("fatal: ").split(" (").next().unwrap_or(line).to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -213,6 +237,18 @@ mod tests {
         // from a subdirectory, only what's below it
         let s = Status::load(&dir.join("sub")).unwrap();
         assert_eq!(s.get(&dir.join("new")), None);
+
+        stage(&dir.join("sub/f")).unwrap();
+        stage(&dir.join("new")).unwrap();
+        let s = Status::load(&dir).unwrap();
+        assert_eq!(s.get(&dir.join("sub/f")), Some(Mark { change: Change::Modified, staged: true }));
+        assert_eq!(s.get(&dir.join("new")), Some(Mark { change: Change::Added, staged: true }));
+        assert!(stage(&dir.join("ign")).is_err()); // ignored
+        unstage(&dir.join("sub")).unwrap();
+        unstage(&dir.join("new")).unwrap();
+        let s = Status::load(&dir).unwrap();
+        assert_eq!(s.get(&dir.join("sub/f")), Some(Mark { change: Change::Modified, staged: false }));
+        assert_eq!(s.get(&dir.join("new")), Some(Mark { change: Change::Untracked, staged: false }));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

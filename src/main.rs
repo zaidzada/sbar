@@ -21,7 +21,7 @@ use ratatui::{DefaultTerminal, Frame};
 use config::Config;
 use tree::{Kind, Node, Row};
 
-const KEYS: [(&str, &str); 26] = [
+const KEYS: [(&str, &str); 27] = [
     ("j / ↓", "move down"),
     ("k / ↑", "move up"),
     ("g / Home", "go to top"),
@@ -38,6 +38,7 @@ const KEYS: [(&str, &str); 26] = [
     ("p", "view in pager pane"),
     ("d", "git diff in popup"),
     ("D", "git diff in new window"),
+    ("s", "git stage / unstage"),
     ("c", "copy path"),
     ("E", "expand all 1 level"),
     ("C", "collapse all"),
@@ -208,6 +209,23 @@ impl App {
         }
     }
 
+    /// Unstage what is fully staged, and stage anything else.
+    fn toggle_stage(&mut self) {
+        let row = self.current();
+        let mark = self.git.as_ref().and_then(|g| g.get(&row.path));
+        let result = match mark {
+            None if self.git.is_some() => Err("no changes".into()),
+            Some(m) if m.staged => git::unstage(&row.path).map(|()| "unstaged"),
+            // outside a repository, let git say so
+            _ => git::stage(&row.path).map(|()| "staged"),
+        };
+        self.message = Some(match result {
+            Ok(done) => format!("{done} {}", row.name),
+            Err(msg) => msg,
+        });
+        self.refresh_git();
+    }
+
     fn copy_path(&mut self) {
         let ok = tmux::copy(&self.current().path);
         self.message = Some(if ok { "copied path" } else { "copy failed" }.into());
@@ -264,6 +282,7 @@ impl App {
             KeyCode::Char('d') => self.diff(false),
             KeyCode::Char('D') => self.diff(true),
             KeyCode::Char('c') => self.copy_path(),
+            KeyCode::Char('s') => self.toggle_stage(),
             KeyCode::Char('r') => self.refresh(),
             KeyCode::Char('.') => {
                 let path = self.current().path.clone();

@@ -41,6 +41,7 @@ Press `?` in sbar to see this list.
 | `p` | view file in `$PAGER` (default `less -R`) in the pane to the right |
 | `d` | show `git diff HEAD` for the file or directory in a tmux popup |
 | `D` | show `git diff HEAD` in a new tmux window |
+| `s` | stage / unstage the file, or everything below the directory |
 | `c` | copy the absolute path to the tmux buffer and system clipboard |
 | `E` | expand all visible folders one level |
 | `C` | collapse all folders |
@@ -106,6 +107,8 @@ Focus then moves to the pane (or window) holding the file.
 `e` edits the file in `$EDITOR` in a popup like `Space`'s, for a quick change without leaving the sidebar; the popup closes when you quit the editor.
 
 `d` shows the staged and unstaged changes to the selected file, or to everything below a directory, as `git diff HEAD` piped into the pager, in a popup like `Space`'s. `D` shows the same in a new window. With nothing to show, or outside a git repository, the footer says so instead. Untracked files have no diff.
+
+`s` toggles whether the selected file, or everything below a directory, is staged, going by its gutter mark: a green mark is unstaged with `git reset`, anything else (red, including new and deleted files) is staged with `git add`, so a half-staged file is staged in full first. With no changes, or if git refuses, as for an ignored file or outside a repository, the footer says why.
 
 `c` copies the selected path into a tmux paste buffer (`set-buffer -w`), which tmux passes on to the system clipboard when its `set-clipboard` option is `on` or `external` (the default).
 
