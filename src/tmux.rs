@@ -202,7 +202,10 @@ pub fn copy(path: &Path) -> bool {
 /// theme colours like `themedarkgrey` resolved for the current light/dark
 /// theme. `None` outside tmux or when the style sets no usable background.
 pub fn selection_bg() -> Option<Color> {
-    let out = tmux(&["display", "-p", "#{theme}\t#{E:mode-style}"])?;
+    // A theme left at `detect` follows the client, which has the light/dark
+    // mode the terminal reported
+    let theme = "#{?#{==:#{theme},detect},#{client_theme},#{theme}}";
+    let out = tmux(&["display", "-p", &format!("{theme}\t#{{E:mode-style}}")])?;
     let (theme, style) = out.split_once('\t')?;
     let bg = style_bg(style)?;
     let value = match theme_option(bg, theme) {
